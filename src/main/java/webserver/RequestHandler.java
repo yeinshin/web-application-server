@@ -5,6 +5,7 @@ import java.net.Socket;
 import java.net.URLDecoder;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 
 import db.DataBase;
@@ -41,13 +42,15 @@ public class RequestHandler extends Thread {
             String url = tokens[1];
 
             int contentLength = 0;
+            Map<String,String> headerMap = new HashMap<>();
+
             // 요청 헤더 읽기
-            while(!"".equals(line)){
-                line = br.readLine();
+            while(!"".equals(line = br.readLine())){
                 log.debug("header : {}",line);
-                if (line.startsWith("Content-Length:")){
-                    String[] requestHeader = line.split(":");
-                    contentLength = Integer.parseInt(requestHeader[1].trim());
+                String[] requestHeader = line.split(":");
+                headerMap.put(requestHeader[0],requestHeader[1]);
+                if ("Content-Length".equals(requestHeader[0])){
+                    contentLength = Integer.parseInt(headerMap.get(requestHeader[0]).trim());
                 }
             }
 
