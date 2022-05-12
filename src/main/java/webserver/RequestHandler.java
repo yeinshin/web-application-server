@@ -7,10 +7,12 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Map;
 
+import db.DataBase;
 import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import util.HttpRequestUtils;
+import util.IOUtils;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -38,22 +40,26 @@ public class RequestHandler extends Thread {
             log.debug("tokens test : {} ",Arrays.toString(tokens));
             String url = tokens[1];
 
+            int contentLength = 0;
             // 요청 헤더 읽기
             while(!"".equals(line)){
                 line = br.readLine();
                 log.debug("header : {}",line);
+                if (line.startsWith("Content-Length:")){
+                    String[] requestHeader = line.split(":");
+                    contentLength = Integer.parseInt(requestHeader[1].trim());
+                }
             }
 
-            if(url.length()>=12 && url.substring(0,12).equals("/user/create")){
-                int idx = url.indexOf("?");
-                String queryString = url.substring(idx+1);
-                log.debug("queryString Test: {} " , queryString);
-                Map<String,String > info = HttpRequestUtils.parseQueryString(queryString);
+            // POST 방식
+            if("/user/create".equals(url)){
+                String requestBody = IOUtils.readData(br,contentLength);
+                Map<String,String > info = HttpRequestUtils.parseQueryString(requestBody);
 
-//                try { System.out.println(URLDecoder.decode(userId, "utf-8")); }catch (Exception e){ System.out.println(e.getMessage()); }
                 User user = new User(info.get("userId"),info.get("password"),info.get("name"),info.get("email"));
                 // User 객체 Test
                 log.debug("User Test : {}",user);
+                DataBase.addUser(user);
             }
             else {
                 DataOutputStream dos = new DataOutputStream(out);
@@ -61,6 +67,26 @@ public class RequestHandler extends Thread {
                 response200Header(dos, body.length);
                 responseBody(dos, body);
             }
+
+            // GET 방식
+//            if(url.length()>=12 && url.substring(0,12).equals("/user/create")){
+//                int idx = url.indexOf("?");
+//                String queryString = url.substring(idx+1);
+//                log.debug("queryString Test: {} " , queryString);
+//
+//                Map<String,String > info = HttpRequestUtils.parseQueryString(queryString);
+//
+//                User user = new User(info.get("userId"),info.get("password"),info.get("name"),info.get("email"));
+//                // User 객체 Test
+//                log.debug("User Test : {}",user);
+//                DataBase.addUser(user);
+//            }
+//            else {
+//                DataOutputStream dos = new DataOutputStream(out);
+//                byte[] body = Files.readAllBytes(new File("./webapp"+ url).toPath());
+//                response200Header(dos, body.length);
+//                responseBody(dos, body);
+//            }
 
         } catch (IOException e) {
             log.error(e.getMessage());
