@@ -53,10 +53,30 @@ public class RequestHandler extends Thread {
                     contentLength = Integer.parseInt(headerMap.get(requestHeader[0]).trim());
                 }
             }
+            
+            // 로그인 기능
+            if("/user/login".equals(url)){
+                String requestBody = IOUtils.readData(br,contentLength);
+                Map<String, String> info = HttpRequestUtils.parseQueryString(requestBody);
+                User user = DataBase.findUserById(info.get("userId"));
 
+                // 아이디와 비밀번호 입력 값이 안들어왔을 때 (null 처리) or 아이디 or 비밀번호가 틀렸을 때
+                if(user == null || !user.getPassword().equals(info.get("password"))){
+                    DataOutputStream dos = new DataOutputStream(out);
+                    byte[] body = Files.readAllBytes(new File("./webapp"+ "/user/login_failed.html").toPath());
+                    response200Header(dos, body.length);
+                    responseBody(dos, body);
+                    return;
+                }
+                // 로그인 성공했을 때
+                if (user.getPassword().equals(info.get("password"))) {
+                    DataOutputStream dos = new DataOutputStream(out);
+                    response302HeaderLoginSuccess(dos, "/index.html");
+                }
+
+            }
             // POST 방식
-
-            if("/user/create".equals(url)){
+            else if("/user/create".equals(url)){
                 String requestBody = IOUtils.readData(br,contentLength);
                 Map<String,String > info = HttpRequestUtils.parseQueryString(requestBody);
 
@@ -113,6 +133,7 @@ public class RequestHandler extends Thread {
             // 응답 헤더
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+//            dos.writeBytes("set-Cookie: logined="+ isLogin + "\r\n");
             // 헤더와 본문 사이의 빈 공백 라인
             dos.writeBytes("\r\n");
         } catch (IOException e) {
@@ -126,6 +147,21 @@ public class RequestHandler extends Thread {
             // 상태 라인 -> 302 : Redirect 의미
             dos.writeBytes("HTTP/1.1 302 redirect \r\n");
             dos.writeBytes("Location: " + url + "\r\n");
+            // 헤더와 본문 사이의 빈 공백 라인
+            dos.writeBytes("\r\n");
+            dos.flush();
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    // 응답 헤더 302 - 로그인 성공했을 때 Set-Cookie
+    private void response302HeaderLoginSuccess(DataOutputStream dos, String url){
+        try {
+            // 상태 라인 -> 302 : Redirect 의미
+            dos.writeBytes("HTTP/1.1 302 redirect \r\n");
+            dos.writeBytes("Location: " + url + "\r\n");
+            dos.writeBytes("Set-Cookie: logined=true \r\n");
             // 헤더와 본문 사이의 빈 공백 라인
             dos.writeBytes("\r\n");
             dos.flush();
