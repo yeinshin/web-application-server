@@ -55,6 +55,7 @@ public class RequestHandler extends Thread {
             }
 
             // POST 방식
+
             if("/user/create".equals(url)){
                 String requestBody = IOUtils.readData(br,contentLength);
                 Map<String,String > info = HttpRequestUtils.parseQueryString(requestBody);
@@ -63,6 +64,13 @@ public class RequestHandler extends Thread {
                 // User 객체 Test
                 log.debug("User Test : {}",user);
                 DataBase.addUser(user);
+
+                // 회원가입을 완료한 후 /index.html 페이지로 이동
+//                url = "/index.html";
+
+                // 302 헤더 : 브라우저는 사용자를 이 URL의 페이지로 리다이렉트 -> responseBody 필요 x
+                DataOutputStream dos = new DataOutputStream(out);
+                response302Header(dos, "/index.html");
             }
             else {
                 DataOutputStream dos = new DataOutputStream(out);
@@ -70,6 +78,7 @@ public class RequestHandler extends Thread {
                 response200Header(dos, body.length);
                 responseBody(dos, body);
             }
+
 
             // GET 방식
 //            if(url.length()>=12 && url.substring(0,12).equals("/user/create")){
@@ -96,17 +105,30 @@ public class RequestHandler extends Thread {
         }
     }
 
-
-    // 응답 헤더
+    // 응답 헤더 200
     private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
         try {
-            // 상태 라인 -> 200 : 성공을 의미
+            // 상태 라인 -> 200 : 성공을 의미, OK : 응답구문
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             // 응답 헤더
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             // 헤더와 본문 사이의 빈 공백 라인
             dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    // 응답 헤더 302
+    private void response302Header(DataOutputStream dos, String url){
+        try {
+            // 상태 라인 -> 302 : Redirect 의미
+            dos.writeBytes("HTTP/1.1 302 redirect \r\n");
+            dos.writeBytes("Location: " + url + "\r\n");
+            // 헤더와 본문 사이의 빈 공백 라인
+            dos.writeBytes("\r\n");
+            dos.flush();
         } catch (IOException e) {
             log.error(e.getMessage());
         }
