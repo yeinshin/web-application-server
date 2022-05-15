@@ -3,8 +3,10 @@ package webserver;
 import java.io.*;
 import java.net.Socket;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,6 +16,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import util.HttpRequestUtils;
 import util.IOUtils;
+
+import javax.xml.crypto.Data;
 
 public class RequestHandler extends Thread {
     private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
@@ -44,28 +48,63 @@ public class RequestHandler extends Thread {
             int contentLength = 0;
             Map<String,String> headerMap = new HashMap<>();
 
+            // 로그인 상태를 저장하는 boolean type 변수
+            boolean isLogin = false;
+
             // 요청 헤더 읽기
             while(!"".equals(line = br.readLine())){
                 log.debug("header : {}",line);
+
                 String[] requestHeader = line.split(":");
                 headerMap.put(requestHeader[0],requestHeader[1]);
+
                 if ("Content-Length".equals(requestHeader[0])){
                     contentLength = Integer.parseInt(headerMap.get(requestHeader[0]).trim());
                 }
+                else if ("Cookie".equals(requestHeader[0])){
+                    String[] cookie = headerMap.get(requestHeader[0]).trim().split("=");
+                    log.debug("cookie Test : {}",Arrays.toString(cookie));
+                    isLogin = Boolean.parseBoolean(cookie[1]);
+                }
             }
-            
+
+            // 사용자 목록 출력
+            if("/user/list".equals(url)){
+                // 로그인이 안되어 있을 때 -> login.html
+                if(!isLogin){
+                    responseResource(out,"/user/login.html");
+                    return;
+                }
+                
+                // 로그인이 되어있다면 사용자들의 목록을 보여줄 table 생성
+                Collection<User> users = DataBase.findAll();
+                StringBuilder sb = new StringBuilder();
+
+                sb.append("<table border='1'>");
+                for (User user : users){
+                    sb.append("<tr>");
+                    sb.append("<td>" + user.getUserId() + "</td>");
+                    sb.append("<td>" + user.getName() + "</td>");
+                    sb.append("<td>" + user.getEmail() + "</td>");
+                    sb.append("</tr>");
+                }
+                sb.append("</table>");
+
+                DataOutputStream dos = new DataOutputStream(out);
+                byte[] body = sb.toString().getBytes();
+                response200Header(dos,body.length);
+                responseBody(dos,body);
+
+            }
             // 로그인 기능
-            if("/user/login".equals(url)){
+            else if("/user/login".equals(url)){
                 String requestBody = IOUtils.readData(br,contentLength);
                 Map<String, String> info = HttpRequestUtils.parseQueryString(requestBody);
                 User user = DataBase.findUserById(info.get("userId"));
 
                 // 아이디와 비밀번호 입력 값이 안들어왔을 때 (null 처리) or 아이디 or 비밀번호가 틀렸을 때
                 if(user == null || !user.getPassword().equals(info.get("password"))){
-                    DataOutputStream dos = new DataOutputStream(out);
-                    byte[] body = Files.readAllBytes(new File("./webapp"+ "/user/login_failed.html").toPath());
-                    response200Header(dos, body.length);
-                    responseBody(dos, body);
+                    responseResource(out,"/user/login_failed.html");
                     return;
                 }
                 // 로그인 성공했을 때
@@ -84,9 +123,6 @@ public class RequestHandler extends Thread {
                 // User 객체 Test
                 log.debug("User Test : {}",user);
                 DataBase.addUser(user);
-
-                // 회원가입을 완료한 후 /index.html 페이지로 이동
-//                url = "/index.html";
 
                 // 302 헤더 : 브라우저는 사용자를 이 URL의 페이지로 리다이렉트 -> responseBody 필요 x
                 DataOutputStream dos = new DataOutputStream(out);
@@ -133,7 +169,6 @@ public class RequestHandler extends Thread {
             // 응답 헤더
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
-//            dos.writeBytes("set-Cookie: logined="+ isLogin + "\r\n");
             // 헤더와 본문 사이의 빈 공백 라인
             dos.writeBytes("\r\n");
         } catch (IOException e) {
@@ -178,5 +213,12 @@ public class RequestHandler extends Thread {
         } catch (IOException e) {
             log.error(e.getMessage());
         }
+    }
+
+    private void responseResource(OutputStream out, String url) throws IOException {
+        DataOutputStream dos = new DataOutputStream(out);
+        byte[] body = Files.readAllBytes(new File("./webapp"+ url).toPath());
+        response200Header(dos, body.length);
+        responseBody(dos, body);
     }
 }
