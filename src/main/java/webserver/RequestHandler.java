@@ -43,7 +43,9 @@ public class RequestHandler extends Thread {
             String[] tokens = line.split(" ");
             // token 값 log 찍기
             log.debug("tokens test : {} ",Arrays.toString(tokens));
+
             String url = tokens[1];
+            log.debug("url : {}",url);
 
             int contentLength = 0;
             Map<String,String> headerMap = new HashMap<>();
@@ -128,10 +130,23 @@ public class RequestHandler extends Thread {
                 DataOutputStream dos = new DataOutputStream(out);
                 response302Header(dos, "/index.html");
             }
+            // CSS 지원하기
+//            else if(url.endsWith(".css")){
+//                DataOutputStream dos = new DataOutputStream(out);
+//                byte[] body = Files.readAllBytes(new File("./webapp"+ url).toPath());
+//                response200CssHeader(dos, body.length);
+//                responseBody(dos, body);
+//            }
             else {
                 DataOutputStream dos = new DataOutputStream(out);
                 byte[] body = Files.readAllBytes(new File("./webapp"+ url).toPath());
-                response200Header(dos, body.length);
+                // CSS 지원하기
+                if(url.endsWith(".css")){
+                    response200CssHeader(dos, body.length);
+                }
+                else{
+                    response200Header(dos, body.length);
+                }
                 responseBody(dos, body);
             }
 
@@ -168,6 +183,20 @@ public class RequestHandler extends Thread {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
             // 응답 헤더
             dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
+            dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
+            // 헤더와 본문 사이의 빈 공백 라인
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    private void response200CssHeader(DataOutputStream dos, int lengthOfBodyContent) {
+        try {
+            // 상태 라인 -> 200 : 성공을 의미, OK : 응답구문
+            dos.writeBytes("HTTP/1.1 200 OK \r\n");
+            // 응답 헤더
+            dos.writeBytes("Content-Type: text/css\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             // 헤더와 본문 사이의 빈 공백 라인
             dos.writeBytes("\r\n");
