@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class HttpRequest {
-    private static final Logger log = LoggerFactory.getLogger(RequestHandler.class);
+    private static final Logger log = LoggerFactory.getLogger(HttpRequest.class);
     private String path = null, method = null;
     private Map<String,String> queryString = new HashMap<>();
     private Map<String,String> headerMap = new HashMap<>();
