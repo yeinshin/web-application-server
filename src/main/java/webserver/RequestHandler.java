@@ -57,16 +57,17 @@ public class RequestHandler extends Thread {
             while(!"".equals(line = br.readLine())){
                 log.debug("header : {}",line);
 
-                String[] requestHeader = line.split(":");
-                headerMap.put(requestHeader[0],requestHeader[1]);
+                HttpRequestUtils.Pair header= HttpRequestUtils.parseHeader(line);
+                headerMap.put(header.getKey(),header.getValue());
+                log.debug("header key: {}, header value: {}",header.getKey(), header.getValue());
 
-                if ("Content-Length".equals(requestHeader[0])){
-                    contentLength = Integer.parseInt(headerMap.get(requestHeader[0]).trim());
+                if ("Content-Length".equals(header.getKey())){
+                    contentLength = Integer.parseInt(headerMap.get("Content-Length").trim());
                 }
-                else if ("Cookie".equals(requestHeader[0])){
-                    String[] cookie = headerMap.get(requestHeader[0]).trim().split("=");
-                    log.debug("cookie Test : {}",Arrays.toString(cookie));
-                    isLogin = Boolean.parseBoolean(cookie[1]);
+                else if ("Cookie".equals(header.getKey())){
+                    Map<String,String> cookie = HttpRequestUtils.parseCookies(header.getValue());
+                    isLogin = Boolean.parseBoolean(cookie.get("logined"));
+                    log.debug("cookie Test : {}", cookie.get("logined"));
                 }
             }
 
@@ -116,7 +117,7 @@ public class RequestHandler extends Thread {
                 }
 
             }
-            // POST 방식
+            // 회원가입 기능 - POST 방식
             else if("/user/create".equals(url)){
                 String requestBody = IOUtils.readData(br,contentLength);
                 Map<String,String > info = HttpRequestUtils.parseQueryString(requestBody);
@@ -151,7 +152,7 @@ public class RequestHandler extends Thread {
             }
 
 
-            // GET 방식
+            // 회원가입 기능 - GET 방식
 //            if(url.length()>=12 && url.substring(0,12).equals("/user/create")){
 //                int idx = url.indexOf("?");
 //                String queryString = url.substring(idx+1);
