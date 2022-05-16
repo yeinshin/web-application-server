@@ -24,41 +24,20 @@ public class HttpRequest {
 
         if(line==null) return;
 
-        String[] tokens = line.split(" ");
-        // GET or POST
-        method = tokens[0];
-        
-        // 본문 데이터에 대한 길이 (POST 방식에서 body의 길이)
-        int contentLength = 0;
+        processRequestLine(line);
 
         boolean isLogin = false;
         while(!"".equals(line = br.readLine())){
             log.debug("header : {}",line);
-
             HttpRequestUtils.Pair header= HttpRequestUtils.parseHeader(line);
             headerMap.put(header.getKey(),header.getValue());
-
-            if ("Content-Length".equals(header.getKey())){
-                contentLength = Integer.parseInt(header.getValue());
-            }
         }
 
-        // GET 방식일 때
-        if("GET".equals(method)){
-            int idx = tokens[1].indexOf("?");
-            // ex : /user/create
-            path = tokens[1].substring(0,idx);
-
-            // QueryString Map 형식으로 저장 (URL에서 ? 이후에 전달되는 field1=value1&field2=value2 형식임)
-            queryString = HttpRequestUtils.parseQueryString(tokens[1].substring(idx+1));
-        }
-        // POST 방식일 때
-        else{
-            path = tokens[1];
-            String body = IOUtils.readData(br,contentLength);
+        // POST 방식일 때의 body parsing
+        if("POST".equals(method)){
+            String body = IOUtils.readData(br,Integer.parseInt(headerMap.get("Content-Length")));
             queryString = HttpRequestUtils.parseQueryString(body);
         }
-
     }
 
     public String getMethod() {
@@ -75,5 +54,27 @@ public class HttpRequest {
 
     public String getParameter(String parameter) {
         return queryString.get(parameter);
+    }
+
+    private void processRequestLine(String requestLine){
+        String[] tokens = requestLine.split(" ");
+        // GET or POST
+        method = tokens[0];
+
+        // GET 방식일 때
+        if("GET".equals(method)){
+            int idx = tokens[1].indexOf("?");
+
+            // ex : /user/create
+            if(idx == -1) path = tokens[1];
+            else path = tokens[1].substring(0,idx);
+
+            // QueryString Map 형식으로 저장 (URL에서 ? 이후에 전달되는 field1=value1&field2=value2 형식임)
+            queryString = HttpRequestUtils.parseQueryString(tokens[1].substring(idx+1));
+        }
+        // POST 방식일 때
+        else{
+            path = tokens[1];
+        }
     }
 }
