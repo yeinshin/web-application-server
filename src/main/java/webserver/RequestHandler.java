@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import db.DataBase;
+import http.HttpRequest;
 import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,55 +35,59 @@ public class RequestHandler extends Thread {
 
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             // TODO 사용자 요청에 대한 처리는 이 곳에 구현하면 된다.
-            BufferedReader br = new BufferedReader(new InputStreamReader(in,"UTF-8"));
-            String line = br.readLine();
-            log.debug("request line: {}",line);
 
-            if(line == null ) return;
+            HttpRequest request = new HttpRequest(in);
+            log.debug("request.getPath(): {}",request.getPath());
+            String path = getDefaultPath(request.getPath());
+            // 회원 가입
+            if("/user/create".equals(path)){
+                User user = new User
+                        (
+                            request.getParameter("userId"),
+                            request.getParameter("password"),
+                            request.getParameter("name"),
+                            request.getParameter("email")
+                        );
 
-            String[] tokens = line.split(" ");
-            // token 값 log 찍기
-            log.debug("tokens test : {} ",Arrays.toString(tokens));
+                log.debug("User Test : {}",user);
+                DataBase.addUser(user);
 
-            String url = tokens[1];
-            log.debug("url : {}",url);
 
-            int contentLength = 0;
-            Map<String,String> headerMap = new HashMap<>();
+                // 302 헤더 : 브라우저는 사용자를 이 URL의 페이지로 리다이렉트 -> responseBody 필요 x
+                DataOutputStream dos = new DataOutputStream(out);
+                response302Header(dos, "/index.html");
+            }
+            // 로그인
+            else if ("/user/login".equals(path)){
+                // userId로 회원 정보 받아오기
+                User user = DataBase.findUserById(request.getParameter("userId"));
+                log.debug("userId: {}", request.getParameter("userId"));
 
-            // 로그인 상태를 저장하는 boolean type 변수
-            boolean isLogin = false;
-
-            // 요청 헤더 읽기
-            while(!"".equals(line = br.readLine())){
-                log.debug("header : {}",line);
-
-                HttpRequestUtils.Pair header= HttpRequestUtils.parseHeader(line);
-                headerMap.put(header.getKey(),header.getValue());
-                log.debug("header key: {}, header value: {}",header.getKey(), header.getValue());
-
-                if ("Content-Length".equals(header.getKey())){
-                    contentLength = Integer.parseInt(headerMap.get("Content-Length").trim());
+                // 아이디와 비밀번호 입력 값이 안들어왔을 때 (null 처리) or 아이디 or 비밀번호가 틀렸을 때
+                if(user == null || !user.getPassword().equals(request.getParameter("password"))){
+                    responseResource(out,"/user/login_failed.html");
+                    return;
                 }
-                else if ("Cookie".equals(header.getKey())){
-                    Map<String,String> cookie = HttpRequestUtils.parseCookies(header.getValue());
-                    isLogin = Boolean.parseBoolean(cookie.get("logined"));
-                    log.debug("cookie Test : {}", cookie.get("logined"));
+                // 로그인 성공했을 때
+                if (user.getPassword().equals(request.getParameter("password"))) {
+                    DataOutputStream dos = new DataOutputStream(out);
+                    response302HeaderLoginSuccess(dos, "/index.html");
                 }
             }
-
             // 사용자 목록 출력
-            if("/user/list".equals(url)){
+            else if ("/user/list".equals(path)){
+
                 // 로그인이 안되어 있을 때 -> login.html
-                if(!isLogin){
+                if(!isLogin(request.getHeader("Cookie"))){
                     responseResource(out,"/user/login.html");
                     return;
                 }
-                
+
                 // 로그인이 되어있다면 사용자들의 목록을 보여줄 table 생성
                 Collection<User> users = DataBase.findAll();
                 StringBuilder sb = new StringBuilder();
 
+                sb.append("<link rel=\"shortcut icon\" href=\"#\">");
                 sb.append("<table border='1'>");
                 for (User user : users){
                     sb.append("<tr>");
@@ -99,50 +104,11 @@ public class RequestHandler extends Thread {
                 responseBody(dos,body);
 
             }
-            // 로그인 기능
-            else if("/user/login".equals(url)){
-                String requestBody = IOUtils.readData(br,contentLength);
-                Map<String, String> info = HttpRequestUtils.parseQueryString(requestBody);
-                User user = DataBase.findUserById(info.get("userId"));
-
-                // 아이디와 비밀번호 입력 값이 안들어왔을 때 (null 처리) or 아이디 or 비밀번호가 틀렸을 때
-                if(user == null || !user.getPassword().equals(info.get("password"))){
-                    responseResource(out,"/user/login_failed.html");
-                    return;
-                }
-                // 로그인 성공했을 때
-                if (user.getPassword().equals(info.get("password"))) {
-                    DataOutputStream dos = new DataOutputStream(out);
-                    response302HeaderLoginSuccess(dos, "/index.html");
-                }
-
-            }
-            // 회원가입 기능 - POST 방식
-            else if("/user/create".equals(url)){
-                String requestBody = IOUtils.readData(br,contentLength);
-                Map<String,String > info = HttpRequestUtils.parseQueryString(requestBody);
-
-                User user = new User(info.get("userId"),info.get("password"),info.get("name"),info.get("email"));
-                // User 객체 Test
-                log.debug("User Test : {}",user);
-                DataBase.addUser(user);
-
-                // 302 헤더 : 브라우저는 사용자를 이 URL의 페이지로 리다이렉트 -> responseBody 필요 x
+            else{
                 DataOutputStream dos = new DataOutputStream(out);
-                response302Header(dos, "/index.html");
-            }
-            // CSS 지원하기
-//            else if(url.endsWith(".css")){
-//                DataOutputStream dos = new DataOutputStream(out);
-//                byte[] body = Files.readAllBytes(new File("./webapp"+ url).toPath());
-//                response200CssHeader(dos, body.length);
-//                responseBody(dos, body);
-//            }
-            else {
-                DataOutputStream dos = new DataOutputStream(out);
-                byte[] body = Files.readAllBytes(new File("./webapp"+ url).toPath());
+                byte[] body = Files.readAllBytes(new File("./webapp"+ path).toPath());
                 // CSS 지원하기
-                if(url.endsWith(".css")){
+                if(path.endsWith(".css")){
                     response200CssHeader(dos, body.length);
                 }
                 else{
@@ -150,27 +116,6 @@ public class RequestHandler extends Thread {
                 }
                 responseBody(dos, body);
             }
-
-
-            // 회원가입 기능 - GET 방식
-//            if(url.length()>=12 && url.substring(0,12).equals("/user/create")){
-//                int idx = url.indexOf("?");
-//                String queryString = url.substring(idx+1);
-//                log.debug("queryString Test: {} " , queryString);
-//
-//                Map<String,String > info = HttpRequestUtils.parseQueryString(queryString);
-//
-//                User user = new User(info.get("userId"),info.get("password"),info.get("name"),info.get("email"));
-//                // User 객체 Test
-//                log.debug("User Test : {}",user);
-//                DataBase.addUser(user);
-//            }
-//            else {
-//                DataOutputStream dos = new DataOutputStream(out);
-//                byte[] body = Files.readAllBytes(new File("./webapp"+ url).toPath());
-//                response200Header(dos, body.length);
-//                responseBody(dos, body);
-//            }
 
         } catch (IOException e) {
             log.error(e.getMessage());
@@ -251,4 +196,21 @@ public class RequestHandler extends Thread {
         response200Header(dos, body.length);
         responseBody(dos, body);
     }
+
+    // 쿠키를 통해 로그인 상태 확인
+    private boolean isLogin(String cookieValue){
+        Map<String,String> cookies = HttpRequestUtils.parseCookies(cookieValue);
+        String value = cookies.get("logined");
+
+        // value가 null -> Set-Cookie가 안됨 -> login 상태가 x
+        if(value==null) return false;
+        // login 상태라면 true 반환
+        return Boolean.parseBoolean(value);
+    }
+
+    private String getDefaultPath(String path){
+        if(path.equals("/")) return "/index.html";
+        return path;
+    }
+
 }
