@@ -3,6 +3,7 @@ package controller;
 import db.DataBase;
 import http.HttpRequest;
 import http.HttpResponse;
+import http.HttpSession;
 import model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +23,13 @@ public class LoginController extends AbstractController {
             response.forward("/user/login_failed.html");
             return;
         }
+
         // 로그인 성공했을 때
-        if (user.getPassword().equals(request.getParameter("password"))) {
-            response.addHeader("Set-Cookie","logined=true");
+        if (user.login(request.getParameter("password"))) {
+            HttpSession session = request.getSession();
+            session.setAttribute("user",user);
             response.sendRedirect("/index.html");
         }
+
     }
 }

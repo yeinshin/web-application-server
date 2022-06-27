@@ -27,7 +27,6 @@ public class HttpRequest {
 
         requestLine = new RequestLine(line);
 
-
         while(!"".equals(line = br.readLine())){
             log.debug("header : {}",line);
             HttpRequestUtils.Pair header= HttpRequestUtils.parseHeader(line);
@@ -60,5 +59,13 @@ public class HttpRequest {
 
     public String getParameter(String param) {
         return parameter.get(param);
+    }
+
+    public HttpCookie getCookies() {
+        return new HttpCookie(getHeader("Cookie"));
+    }
+
+    public HttpSession getSession() {
+        return HttpSessions.getSession(getCookies().getCookie("JSESSIONID"));
     }
 }

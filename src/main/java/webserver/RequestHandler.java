@@ -5,6 +5,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 
 import controller.Controller;
 import db.DataBase;
@@ -35,6 +36,10 @@ public class RequestHandler extends Thread {
 
             HttpRequest request = new HttpRequest(in);
             HttpResponse response = new HttpResponse(out);
+
+            if(request.getCookies().getCookie("JSESSIONID")==null){
+                response.addHeader("Set-Cookie", "JSESSIONID=" + UUID.randomUUID());
+            }
 
             Controller controller = RequestMapping.getController(request.getPath());
             if(controller==null){

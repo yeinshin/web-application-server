@@ -3,6 +3,7 @@ package controller;
 import db.DataBase;
 import http.HttpRequest;
 import http.HttpResponse;
+import http.HttpSession;
 import model.User;
 import util.HttpRequestUtils;
 
@@ -13,7 +14,7 @@ public class ListUserController extends AbstractController{
     @Override
     public void doGet(HttpRequest request, HttpResponse response) {
         // 로그인이 안되어 있을 때 -> login.html
-        if(!isLogin(request.getHeader("Cookie"))){
+        if(!isLogin(request.getSession())){
             response.forward("/user/login.html");
             return;
         }
@@ -36,14 +37,12 @@ public class ListUserController extends AbstractController{
         response.forwardBody(sb.toString());
     }
 
-    // 쿠키를 통해 로그인 상태 확인
-    private boolean isLogin(String cookieValue){
-        Map<String,String> cookies = HttpRequestUtils.parseCookies(cookieValue);
-        String value = cookies.get("logined");
+    private boolean isLogin(HttpSession session){
+        Object user = session.getAttribute("user");
 
-        // value가 null -> Set-Cookie가 안됨 -> login 상태가 x
-        if(value==null) return false;
-        // login 상태라면 true 반환
-        return Boolean.parseBoolean(value);
+        if(user == null){
+            return false;
+        }
+        return true;
     }
 }
